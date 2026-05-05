@@ -206,6 +206,7 @@
     display: flex;
     flex: 1;
     position: relative;
+    touch-action: pan-y;
     /* height is auto to fit bars */
   }
   .month-slot {
@@ -214,6 +215,7 @@
     position: relative;
     min-height: var(--row-h);
     cursor: crosshair;
+    touch-action: pan-y;
   }
   .month-slot:last-child { border-right: none; }
   /* alternate month tint */
@@ -865,7 +867,7 @@ function onPointerDown(e) {
   const plantId = container.dataset.plantId;
   const month = monthFromPointer(e, plantId);
   if (!month) return;
-  // キャプチャはせず、開始座標だけ記録
+  container.setPointerCapture(e.pointerId);
   dragState = {
     plantId, startMonth: month, currentMonth: month,
     pointerId: e.pointerId,
@@ -881,17 +883,11 @@ function onPointerMove(e) {
 
   if (!dragState.committed) {
     if (dy > dx && dy > 6) {
-      // 縦スワイプ → スクロールに譲る
       dragState = null;
+      clearPreview();
       return;
     }
-    if (dx > 6) {
-      // 横スワイプ確定 → キャプチャ開始
-      dragState.committed = true;
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } else {
-      return; // まだ判定中
-    }
+    dragState.committed = true;
   }
 
   const m = monthFromPointer(e, dragState.plantId);
@@ -900,7 +896,7 @@ function onPointerMove(e) {
     updatePreview();
   }
 }
-
+  
 function onPointerUp(e) {
   if (!dragState || e.type === 'pointercancel') return;
   const m = monthFromPointer(e, dragState.plantId) || dragState.currentMonth;
