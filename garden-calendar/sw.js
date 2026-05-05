@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garden-calendar-v1';
+const CACHE_NAME = 'garden-calendar-v2';
 const ASSETS = [
   './index.html',
   'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js',
