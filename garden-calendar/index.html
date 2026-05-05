@@ -206,7 +206,6 @@
     display: flex;
     flex: 1;
     position: relative;
-    touch-action: none;  /* ← 追加 */
     /* height is auto to fit bars */
   }
   .month-slot {
@@ -215,7 +214,6 @@
     position: relative;
     min-height: var(--row-h);
     cursor: crosshair;
-    touch-action: none;  /* ← 追加 */
   }
   .month-slot:last-child { border-right: none; }
   /* alternate month tint */
@@ -863,17 +861,39 @@ function monthFromPointer(e, plantId) {
 function onPointerDown(e) {
   if (e.button !== undefined && e.button !== 0) return;
   if (e.target.closest('.work-bar, .bar-overflow')) return;
-  const container = e.currentTarget; // plant-months div
+  const container = e.currentTarget;
   const plantId = container.dataset.plantId;
   const month = monthFromPointer(e, plantId);
   if (!month) return;
-  container.setPointerCapture(e.pointerId);
-  dragState = { plantId, startMonth: month, currentMonth: month, pointerId: e.pointerId };
-  updatePreview();
+  // キャプチャはせず、開始座標だけ記録
+  dragState = {
+    plantId, startMonth: month, currentMonth: month,
+    pointerId: e.pointerId,
+    startX: e.clientX, startY: e.clientY,
+    committed: false
+  };
 }
 
 function onPointerMove(e) {
   if (!dragState) return;
+  const dx = Math.abs(e.clientX - dragState.startX);
+  const dy = Math.abs(e.clientY - dragState.startY);
+
+  if (!dragState.committed) {
+    if (dy > dx && dy > 6) {
+      // 縦スワイプ → スクロールに譲る
+      dragState = null;
+      return;
+    }
+    if (dx > 6) {
+      // 横スワイプ確定 → キャプチャ開始
+      dragState.committed = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } else {
+      return; // まだ判定中
+    }
+  }
+
   const m = monthFromPointer(e, dragState.plantId);
   if (m && m !== dragState.currentMonth) {
     dragState.currentMonth = m;
