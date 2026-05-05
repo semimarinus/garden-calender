@@ -898,7 +898,13 @@ function onPointerMove(e) {
 }
   
 function onPointerUp(e) {
-  if (!dragState || e.type === 'pointercancel') return;
+  if (!dragState) return;
+  if (!dragState.committed) {
+    // 横スワイプ未確定のまま終了（縦スクロールのタップ離し等）
+    clearPreview();
+    dragState = null;
+    return;
+  }
   const m = monthFromPointer(e, dragState.plantId) || dragState.currentMonth;
   dragState.currentMonth = m;
   clearPreview();
