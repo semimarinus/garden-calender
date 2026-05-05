@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ガーデンカレンダー</title>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f0eb;
+    --surface: #fffdf9;
+    --surface2: #f0ebe3;
+    --border: #d8cfc4;
+    --text: #2c2416;
+    --text-sub: #8a7a68;
+    --accent: #5a8a5a;
+    --accent2: #c17f3a;
+    --header-h: 52px;
+    --row-h: 48px;
+    --month-w: calc((100vw - var(--label-w)) / 12);
+    --label-w: 72px;
+    --sheet-z: 100;
+    --overlay-z: 99;
+    --bar-max: 2;
+    --bar-h: 18px;
+    --bar-gap: 2px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Header ── */
+  header {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+  header h1 {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    flex: 1;
+  }
+  .header-btn {
+    width: 36px; height: 36px;
+    border: none; border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: transform .15s, background .15s;
+  }
+  .header-btn:active { transform: scale(.9); background: #3d6b3d; }
+
+  .manage-btn {
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    color: var(--text);
+    font-size: 16px;
+  }
+  .manage-btn:active { background: var(--border); }
+
+  .manage-plant-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .manage-plant-row:last-child { border-bottom: none; }
+  .manage-plant-name {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .manage-plant-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1.5px solid var(--accent);
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+  }
+  .icon-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    line-height: 1;
+  }
+  .icon-btn:active { background: var(--surface2); }
+
+  /* ── Calendar wrapper ── */
+  .cal-wrapper {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* sticky column header */
+  .col-header {
+    display: flex;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  .col-header .label-spacer {
+    width: var(--label-w);
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+  }
+  .col-header .month-cell {
+    flex: 1;
+    height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub);
+    border-right: 1px solid var(--border);
+  }
+  .col-header .month-cell:last-child { border-right: none; }
+
+  /* scroll area */
+  .cal-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* plant row */
+  .plant-row {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--border);
+    min-height: var(--row-h);
+    background: var(--surface);
+    position: relative;
+    transition: background .15s;
+  }
+  .plant-row:active { background: var(--surface2); }
+
+  .plant-label {
+    width: var(--label-w);
+    flex-shrink: 0;
+    padding: 0 8px 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-right: 1px solid var(--border);
+    font-size: 10px;
+    font-weight: 600;
+    gap: 4px;
+    cursor: grab;
+  }
+  .plant-label-name {
+    flex: 1;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    word-break: break-all;
+  }
+  
+  .drag-handle {
+    color: var(--border);
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  /* month grid for a plant */
+  .plant-months {
+    display: flex;
+    flex: 1;
+    position: relative;
+    touch-action: none;  /* ← 追加 */
+    /* height is auto to fit bars */
+  }
+  .month-slot {
+    flex: 1;
+    border-right: 1px solid var(--border);
+    position: relative;
+    min-height: var(--row-h);
+    cursor: crosshair;
+    touch-action: none;  /* ← 追加 */
+  }
+  .month-slot:last-child { border-right: none; }
+  /* alternate month tint */
+  .month-slot:nth-child(even) { background: rgba(0,0,0,.018); }
+
+  /* drag highlight */
+  .month-slot.drag-over { background: rgba(90,138,90,.13) !important; }
+
+  /* bars layer */
+  .bars-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .work-bar {
+    position: absolute;
+    height: var(--bar-h);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    pointer-events: all;
+    box-shadow: 0 1px 3px rgba(0,0,0,.18);
+    transition: filter .1s;
+  }
+  .work-bar:active { filter: brightness(.85); }
+
+  .bar-overflow {
+    position: absolute;
+    height: var(--bar-h);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 5px;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-sub);
+    cursor: pointer;
+    pointer-events: all;
+  }
+
+  /* drag preview bar */
+  .preview-bar {
+    position: absolute;
+    height: var(--bar-h);
+    background: rgba(90,138,90,.35);
+    border: 2px dashed var(--accent);
+    border-radius: 4px;
+    pointer-events: none;
+    top: 6px;
+  }
+
+  /* empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 60px 24px;
+    color: var(--text-sub);
+    text-align: center;
+  }
+  .empty-state .icon { font-size: 48px; }
+  .empty-state p { font-size: 14px; line-height: 1.6; }
+
+  /* ── Bottom Sheet ── */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: var(--overlay-z);
+  }
+  .overlay.open { display: block; }
+
+  .bottom-sheet {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    padding: 12px 20px 32px;
+    z-index: var(--sheet-z);
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.32,0,.08,1);
+    max-height: 85dvh;
+    overflow-y: auto;
+  }
+  .bottom-sheet.open { transform: translateY(0); }
+
+  .sheet-handle {
+    width: 40px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 16px;
+  }
+  .sheet-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub);
+    margin-bottom: 6px;
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .form-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px;
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s;
+    font-family: inherit;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  /* work type selector */
+  .worktype-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .worktype-chip {
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .15s;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+  }
+  .worktype-chip.selected {
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .new-worktype-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+  }
+  .new-worktype-row .form-input { flex: 1; }
+
+  .color-picker-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .color-swatch {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform .15s;
+    flex-shrink: 0;
+  }
+  .color-swatch.selected { border-color: var(--text); transform: scale(1.15); }
+
+  /* custom color input */
+  .color-custom {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 2px dashed var(--border);
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .color-custom input[type=color] {
+    position: absolute;
+    inset: -4px;
+    opacity: 0;
+    cursor: pointer;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+  }
+  .color-custom-icon {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    color: var(--text-sub);
+    pointer-events: none;
+  }
+
+  /* sheet actions */
+  .sheet-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+  }
+  .btn {
+    flex: 1;
+    padding: 13px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: filter .15s, transform .1s;
+  }
+  .btn:active { transform: scale(.97); filter: brightness(.9); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--surface2); color: var(--text); }
+  .btn-danger { background: #c0392b; color: #fff; flex: none; padding: 13px 18px; }
+
+  .period-editor {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .period-field {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 4px 6px;
+  }
+  .period-btn {
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-family: inherit;
+    line-height: 1;
+  }
+  .period-btn:active { background: var(--border); }
+  .period-val {
+    font-size: 15px;
+    font-weight: 700;
+    min-width: 36px;
+    text-align: center;
+  }
+  .period-sep {
+    font-size: 14px;
+    color: var(--text-sub);
+    flex-shrink: 0;
+  }
+
+  /* toast */
+  .toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(44,36,22,.9);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity .25s, transform .25s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌱 ガーデンカレンダー</h1>
+  <button class="header-btn manage-btn" id="menuBtn" title="メニュー">⋯</button>
+  <button class="header-btn manage-btn" id="managePlantsBtn" title="植物を管理">🌿</button>
+  <button class="header-btn" id="addPlantBtn" title="植物を追加">＋</button>
+</header>
+
+<div class="cal-wrapper">
+  <div class="col-header">
+    <div class="label-spacer"></div>
+    <!-- months injected by JS -->
+  </div>
+  <div class="cal-scroll" id="calScroll">
+    <!-- rows injected by JS -->
+  </div>
+</div>
+
+<!-- Bottom Sheet: Menu -->
+<div class="bottom-sheet" id="menuSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">メニュー</div>
+  <div style="display:flex;flex-direction:column;gap:10px;">
+    <button class="btn btn-secondary" id="exportBtn">📤 データをエクスポート</button>
+    <button class="btn btn-secondary" id="importBtn">📥 データをインポート</button>
+  </div>
+  <div class="sheet-actions" style="margin-top:16px;">
+    <button class="btn btn-secondary" id="menuCloseBtn">閉じる</button>
+  </div>
+</div>
+<input type="file" id="importFileInput" accept=".json" style="display:none">
+
+<!-- Overlay -->
+<div class="overlay" id="overlay"></div>
+
+<!-- Bottom Sheet: Manage Plants -->
+<div class="bottom-sheet" id="managePlantsSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">植物を管理</div>
+  <div id="managePlantsList"></div>
+  <div class="sheet-actions" style="margin-top:16px;">
+    <button class="btn btn-secondary" id="managePlantsDoneBtn">閉じる</button>
+  </div>
+</div>
+
+<!-- Bottom Sheet: Add Plant -->
+<div class="bottom-sheet" id="plantSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="plantSheetTitle">植物を追加</div>
+  <div class="form-group">
+    <label class="form-label">植物名</label>
+    <input class="form-input" id="plantNameInput" type="text" placeholder="例：トマト" maxlength="30">
+  </div>
+  <div class="sheet-actions">
+    <button class="btn btn-secondary" id="plantCancelBtn">キャンセル</button>
+    <button class="btn btn-primary" id="plantSaveBtn">追加する</button>
+  </div>
+</div>
+
+<!-- Bottom Sheet: Work -->
+<div class="bottom-sheet" id="workSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="workSheetTitle">作業を登録</div>
+  <div class="form-group">
+    <label class="form-label">期間</label>
+    <div class="period-editor">
+      <div class="period-field">
+        <button class="period-btn" id="startDec">◀</button>
+        <span class="period-val" id="startDisplay">—月</span>
+        <button class="period-btn" id="startInc">▶</button>
+      </div>
+      <span class="period-sep">〜</span>
+      <div class="period-field">
+        <button class="period-btn" id="endDec">◀</button>
+        <span class="period-val" id="endDisplay">—月</span>
+        <button class="period-btn" id="endInc">▶</button>
+      </div>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">作業の種類</label>
+    <div class="worktype-list" id="worktypeList"></div>
+    <div class="new-worktype-row">
+      <input class="form-input" id="newWorktypeInput" type="text" placeholder="新しい作業を追加…" maxlength="20">
+      <div class="color-picker-row">
+        <!-- swatches injected -->
+      </div>
+    </div>
+    <div class="color-picker-row" id="swatchRow" style="margin-top:10px;"></div>
+  </div>
+  <div class="sheet-actions" id="workSheetActions">
+    <button class="btn btn-secondary" id="workCancelBtn">キャンセル</button>
+    <button class="btn btn-primary" id="workSaveBtn">保存</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ──────────────────────────────────────────────
+// State
+// ──────────────────────────────────────────────
+const PRESET_COLORS = ['#5a8a5a','#c17f3a','#4a7fb5','#c14a4a','#9b59b6','#1abc9c','#e67e22','#e91e63'];
+const MAX_BARS = 2;
+function getMonthW() {
+  const slot = document.querySelector('.month-slot');
+  return slot ? slot.getBoundingClientRect().width : (window.innerWidth - 72) / 12;
+}
+
+let state = {
+  plants: [],     // {id, name, order}
+  workTypes: [],  // {id, name, color}
+  schedules: [],  // {id, plantId, workTypeId, startMonth, endMonth}
+};
+
+// drag / swipe
+let dragState = null; // {plantId, startMonth}
+
+// sheet context
+let sheetCtx = null; // {mode:'new'|'edit', plantId?, scheduleId?, startMonth?, endMonth?}
+
+// ──────────────────────────────────────────────
+// Persistence
+// ──────────────────────────────────────────────
+function save() {
+  localStorage.setItem('gardenCal_v1', JSON.stringify(state));
+}
+function load() {
+  try {
+    const d = localStorage.getItem('gardenCal_v1');
+    if (d) state = JSON.parse(d);
+  } catch(e) {}
+}
+
+
+// ──────────────────────────────────────────────
+// ID generation
+// ──────────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// ──────────────────────────────────────────────
+// Render
+// ──────────────────────────────────────────────
+function render() {
+  renderColHeader();
+  renderRows();
+}
+
+function renderColHeader() {
+  const ch = document.querySelector('.col-header');
+  // keep spacer, rebuild months
+  const existing = ch.querySelectorAll('.month-cell');
+  existing.forEach(e => e.remove());
+  for (let m = 1; m <= 12; m++) {
+    const d = document.createElement('div');
+    d.className = 'month-cell';
+    d.textContent = m;
+    ch.appendChild(d);
+  }
+}
+
+function renderRows() {
+  const scroll = document.getElementById('calScroll');
+  scroll.innerHTML = '';
+
+  const sorted = [...state.plants].sort((a,b) => a.order - b.order);
+
+  if (sorted.length === 0) {
+    scroll.innerHTML = `<div class="empty-state"><div class="icon">🌿</div><p>右上の ＋ ボタンで<br>植物を追加してください</p></div>`;
+    initSortable();
+    return;
+  }
+
+  sorted.forEach(plant => {
+    const row = buildRow(plant);
+    scroll.appendChild(row);
+  });
+
+  initSortable();
+}
+
+function buildRow(plant) {
+  const schedules = state.schedules.filter(s => s.plantId === plant.id);
+
+  const row = document.createElement('div');
+  row.className = 'plant-row';
+  row.dataset.plantId = plant.id;
+
+  // label
+  const label = document.createElement('div');
+  label.className = 'plant-label';
+  label.innerHTML = `<span class="plant-label-name">${esc(plant.name)}</span><span class="drag-handle">⋮⋮</span>`;
+  row.appendChild(label);
+
+  // months container
+  const months = document.createElement('div');
+  months.className = 'plant-months';
+  months.dataset.plantId = plant.id;
+
+  // pointer events on container (not individual slots) to survive cross-slot movement
+  months.addEventListener('pointerdown', onPointerDown);
+  months.addEventListener('pointermove', onPointerMove);
+  months.addEventListener('pointerup', onPointerUp);
+  months.addEventListener('pointercancel', onPointerCancel);
+
+  for (let m = 1; m <= 12; m++) {
+    const slot = document.createElement('div');
+    slot.className = 'month-slot';
+    slot.dataset.month = m;
+    slot.dataset.plantId = plant.id;
+
+    months.appendChild(slot);
+  }
+
+  // bars layer
+  const barsLayer = document.createElement('div');
+  barsLayer.className = 'bars-layer';
+  barsLayer.dataset.plantId = plant.id;
+
+  // compute stacking
+  // For each month, count how many bars occupy it (for overflow)
+  renderBars(schedules, barsLayer, plant.id);
+
+  months.appendChild(barsLayer);
+  row.appendChild(months);
+  return row;
+}
+
+function renderBars(schedules, layer, plantId) {
+  layer.innerHTML = '';
+  if (!schedules.length) return;
+
+  // Sort by startMonth then id for stable ordering
+  const sorted = [...schedules].sort((a,b) => a.startMonth - b.startMonth || a.id.localeCompare(b.id));
+
+  // Assign stack slots using interval scheduling
+  const slots = []; // slots[i] = endMonth of last bar in slot i
+
+  const assigned = sorted.map(sch => {
+    let slot = slots.findIndex(end => end < sch.startMonth);
+    if (slot === -1) { slot = slots.length; slots.push(0); }
+    slots[slot] = sch.endMonth;
+    return { sch, slot };
+  });
+
+  // Find overflow months: months where >MAX_BARS bars exist
+  // We show first MAX_BARS bars normally, rest as overflow per-month
+  // Simpler approach: show bars in slot 0..MAX_BARS-1 normally, slot>=MAX_BARS as overflow
+  assigned.forEach(({ sch, slot }) => {
+    if (slot < MAX_BARS) {
+      const bar = buildBar(sch, slot);
+      layer.appendChild(bar);
+    }
+  });
+
+  // Overflow: for each month, count bars in slot >= MAX_BARS
+  const overflowByMonth = {};
+  assigned.forEach(({ sch, slot }) => {
+    if (slot >= MAX_BARS) {
+      for (let m = sch.startMonth; m <= sch.endMonth; m++) {
+        overflowByMonth[m] = (overflowByMonth[m] || 0) + 1;
+      }
+    }
+  });
+
+  // Draw overflow badges
+  Object.entries(overflowByMonth).forEach(([month, count]) => {
+    const m = parseInt(month);
+    const mw = getMonthW();
+    const badge = document.createElement('div');
+    badge.className = 'bar-overflow';
+    badge.textContent = `+${count}`;
+    badge.style.left = ((m - 1) * mw + 2) + 'px';
+    badge.style.width = (mw - 4) + 'px';
+    badge.style.top = (6 + MAX_BARS * (18 + 2)) + 'px';
+    badge.dataset.plantId = plantId;
+    badge.dataset.month = m;
+    badge.addEventListener('click', () => showOverflowSchedules(plantId, m));
+    layer.appendChild(badge);
+  });
+}
+
+function buildBar(sch, slot) {
+  const wt = state.workTypes.find(w => w.id === sch.workTypeId);
+  const color = wt ? wt.color : '#888';
+  const name = wt ? wt.name : '?';
+
+  const bar = document.createElement('div');
+  bar.className = 'work-bar';
+  bar.style.background = color;
+  const mw = getMonthW();
+  bar.style.left = ((sch.startMonth - 1) * mw + 1) + 'px';
+  bar.style.width = ((sch.endMonth - sch.startMonth + 1) * mw - 2) + 'px';
+  bar.style.top = (6 + slot * (18 + 2)) + 'px';
+  bar.textContent = name;
+  bar.dataset.scheduleId = sch.id;
+
+  bar.addEventListener('click', e => {
+    e.stopPropagation();
+    openEditWorkSheet(sch.id);
+  });
+  return bar;
+}
+
+// ──────────────────────────────────────────────
+// SortableJS
+// ──────────────────────────────────────────────
+let sortable = null;
+function initSortable() {
+  const scroll = document.getElementById('calScroll');
+  if (sortable) { sortable.destroy(); sortable = null; }
+  if (!scroll.querySelector('.plant-row')) return;
+
+  sortable = Sortable.create(scroll, {
+    animation: 150,
+    handle: '.plant-label',
+    filter: '.plant-months',
+    preventOnFilter: false,
+    onEnd(evt) {
+      const sorted = [...state.plants].sort((a,b) => a.order - b.order);
+      const moved = sorted.splice(evt.oldIndex, 1)[0];
+      sorted.splice(evt.newIndex, 0, moved);
+      sorted.forEach((p, i) => p.order = i);
+      save();
+      render();
+    }
+  });
+}
+
+// ──────────────────────────────────────────────
+// Pointer drag for month selection
+// ──────────────────────────────────────────────
+function monthFromPointer(e, plantId) {
+  const months = document.querySelector(`.plant-months[data-plant-id="${plantId}"], .plant-row[data-plant-id="${plantId}"] .plant-months`);
+  if (!months) return null;
+  // find slot under pointer
+  const slots = months.querySelectorAll('.month-slot');
+  for (const slot of slots) {
+    const r = slot.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right) {
+      return parseInt(slot.dataset.month);
+    }
+  }
+  return null;
+}
+
+function onPointerDown(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  if (e.target.closest('.work-bar, .bar-overflow')) return;
+  const container = e.currentTarget; // plant-months div
+  const plantId = container.dataset.plantId;
+  const month = monthFromPointer(e, plantId);
+  if (!month) return;
+  container.setPointerCapture(e.pointerId);
+  dragState = { plantId, startMonth: month, currentMonth: month, pointerId: e.pointerId };
+  updatePreview();
+}
+
+function onPointerMove(e) {
+  if (!dragState) return;
+  const m = monthFromPointer(e, dragState.plantId);
+  if (m && m !== dragState.currentMonth) {
+    dragState.currentMonth = m;
+    updatePreview();
+  }
+}
+
+function onPointerUp(e) {
+  if (!dragState || e.type === 'pointercancel') return;
+  const m = monthFromPointer(e, dragState.plantId) || dragState.currentMonth;
+  dragState.currentMonth = m;
+  clearPreview();
+  const start = Math.min(dragState.startMonth, dragState.currentMonth);
+  const end   = Math.max(dragState.startMonth, dragState.currentMonth);
+  const plantId = dragState.plantId;
+  dragState = null;
+  openNewWorkSheet(plantId, start, end);
+}
+
+function onPointerCancel(e) {
+  clearPreview();
+  dragState = null;
+}
+
+function updatePreview() {
+  clearPreview();
+  if (!dragState) return;
+  const { plantId, startMonth, currentMonth } = dragState;
+  const start = Math.min(startMonth, currentMonth);
+  const end   = Math.max(startMonth, currentMonth);
+  const layer = document.querySelector(`.bars-layer[data-plant-id="${plantId}"]`);
+  if (!layer) return;
+  const mw = getMonthW();
+  const preview = document.createElement('div');
+  preview.className = 'preview-bar';
+  preview.id = 'previewBar';
+  preview.style.left = ((start - 1) * mw + 1) + 'px';
+  preview.style.width = ((end - start + 1) * mw - 2) + 'px';
+  layer.appendChild(preview);
+}
+
+function clearPreview() {
+  const p = document.getElementById('previewBar');
+  if (p) p.remove();
+}
+
+
+//---------------------
+// Bottom sheet manage plants
+//---------------------
+
+
+document.getElementById('managePlantsBtn').addEventListener('click', openManagePlantsSheet);
+document.getElementById('managePlantsDoneBtn').addEventListener('click', () => closeSheet('managePlantsSheet'));
+
+function openManagePlantsSheet() {
+  renderManagePlantsList();
+  openSheet('managePlantsSheet');
+}
+
+function renderManagePlantsList() {
+  const list = document.getElementById('managePlantsList');
+  list.innerHTML = '';
+  const sorted = [...state.plants].sort((a, b) => a.order - b.order);
+  if (sorted.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-sub);font-size:14px;text-align:center;padding:20px 0;">植物がありません</p>';
+    return;
+  }
+  sorted.forEach(plant => {
+    const row = document.createElement('div');
+    row.className = 'manage-plant-row';
+    row.dataset.plantId = plant.id;
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'manage-plant-name';
+    nameEl.textContent = plant.name;
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn';
+    editBtn.textContent = '✏️';
+    editBtn.addEventListener('click', () => startInlineEdit(plant.id, row, nameEl));
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'icon-btn';
+    deleteBtn.textContent = '🗑️';
+    deleteBtn.addEventListener('click', () => {
+      state.plants = state.plants.filter(p => p.id !== plant.id);
+      state.schedules = state.schedules.filter(s => s.plantId !== plant.id);
+      save();
+      render();
+      renderManagePlantsList();
+    });
+
+    row.appendChild(nameEl);
+    row.appendChild(editBtn);
+    row.appendChild(deleteBtn);
+    list.appendChild(row);
+  });
+}
+
+function startInlineEdit(plantId, row, nameEl) {
+  // すでに編集中の行があればキャンセル
+  const existing = document.querySelector('.manage-plant-input');
+  if (existing) existing.closest('.manage-plant-row').__cancelEdit?.();
+
+  const plant = state.plants.find(p => p.id === plantId);
+  if (!plant) return;
+
+  const input = document.createElement('input');
+  input.className = 'manage-plant-input';
+  input.value = plant.name;
+  input.maxLength = 30;
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'icon-btn';
+  confirmBtn.textContent = '✓';
+  confirmBtn.style.color = 'var(--accent)';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'icon-btn';
+  cancelBtn.textContent = '✕';
+
+  // 元の内容を退避して差し替え
+  const original = row.innerHTML;
+  row.innerHTML = '';
+  row.appendChild(input);
+  row.appendChild(confirmBtn);
+  row.appendChild(cancelBtn);
+  input.focus();
+  input.select();
+
+  const cancel = () => {
+    row.innerHTML = original;
+    // イベント再バインド
+    row.querySelector('.icon-btn:nth-child(2)').addEventListener('click', () => startInlineEdit(plantId, row, row.querySelector('.manage-plant-name')));
+    row.querySelector('.icon-btn:nth-child(3)').addEventListener('click', () => {
+      state.plants = state.plants.filter(p => p.id !== plantId);
+      state.schedules = state.schedules.filter(s => s.plantId !== plantId);
+      save(); render(); renderManagePlantsList();
+    });
+  };
+  row.__cancelEdit = cancel;
+
+  const confirm = () => {
+    const newName = input.value.trim();
+    if (!newName) { showToast('植物名を入力してください'); return; }
+    plant.name = newName;
+    save();
+    render();
+    renderManagePlantsList();
+  };
+
+  confirmBtn.addEventListener('click', confirm);
+  cancelBtn.addEventListener('click', cancel);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirm();
+    if (e.key === 'Escape') cancel();
+  });
+}
+
+
+
+
+
+// ──────────────────────────────────────────────
+// Bottom Sheet: Plant
+// ──────────────────────────────────────────────
+document.getElementById('addPlantBtn').addEventListener('click', () => openPlantSheet());
+document.getElementById('plantCancelBtn').addEventListener('click', closePlantSheet);
+document.getElementById('plantSaveBtn').addEventListener('click', savePlant);
+document.getElementById('overlay').addEventListener('click', closeAllSheets);
+
+function openPlantSheet() {
+  document.getElementById('plantNameInput').value = '';
+  document.getElementById('plantSheetTitle').textContent = '植物を追加';
+  openSheet('plantSheet');
+  setTimeout(() => document.getElementById('plantNameInput').focus(), 350);
+}
+
+function closePlantSheet() { closeSheet('plantSheet'); }
+
+function savePlant() {
+  const name = document.getElementById('plantNameInput').value.trim();
+  if (!name) { showToast('植物名を入力してください'); return; }
+  const maxOrder = state.plants.reduce((m, p) => Math.max(m, p.order), -1);
+  state.plants.push({ id: uid(), name, order: maxOrder + 1 });
+  save();
+  closePlantSheet();
+  render();
+}
+
+// ──────────────────────────────────────────────
+// Bottom Sheet: Work
+// ──────────────────────────────────────────────
+let selectedWorkTypeId = null;
+let selectedColor = PRESET_COLORS[0];
+let newWorktypeMode = false;
+
+function openNewWorkSheet(plantId, startMonth, endMonth) {
+  sheetCtx = { mode: 'new', plantId, startMonth, endMonth };
+  document.getElementById('workSheetTitle').textContent = '作業を登録';
+  renderPeriodEditor();
+  selectedWorkTypeId = state.workTypes[0]?.id || null;
+  selectedColor = PRESET_COLORS[0];
+  document.getElementById('newWorktypeInput').value = '';
+
+  // remove delete btn if present
+  const del = document.getElementById('deleteWorkBtn');
+  if (del) del.remove();
+
+  renderWorktypeList();
+  renderSwatches();
+  openSheet('workSheet');
+}
+
+function openEditWorkSheet(scheduleId) {
+  const sch = state.schedules.find(s => s.id === scheduleId);
+  if (!sch) return;
+  sheetCtx = { mode: 'edit', scheduleId, plantId: sch.plantId, startMonth: sch.startMonth, endMonth: sch.endMonth };
+  document.getElementById('workSheetTitle').textContent = '作業を編集';
+  renderPeriodEditor();
+  selectedWorkTypeId = sch.workTypeId;
+  selectedColor = state.workTypes.find(w => w.id === sch.workTypeId)?.color || PRESET_COLORS[0];
+  document.getElementById('newWorktypeInput').value = '';
+
+  // add delete btn
+  let del = document.getElementById('deleteWorkBtn');
+  if (!del) {
+    del = document.createElement('button');
+    del.id = 'deleteWorkBtn';
+    del.className = 'btn btn-danger';
+    del.textContent = '削除';
+    del.addEventListener('click', deleteWork);
+    document.getElementById('workSheetActions').prepend(del);
+  }
+
+  renderWorktypeList();
+  renderSwatches();
+  openSheet('workSheet');
+}
+
+function showOverflowSchedules(plantId, month) {
+  // tap overflow badge → open first overflow schedule for that month/plant
+  const overflow = state.schedules.filter(s =>
+    s.plantId === plantId && s.startMonth <= month && s.endMonth >= month
+  );
+  // find those in slot >= MAX_BARS — just open the first one we can find
+  if (overflow.length) openEditWorkSheet(overflow[overflow.length - 1].id);
+}
+
+document.getElementById('workCancelBtn').addEventListener('click', () => closeSheet('workSheet'));
+document.getElementById('workSaveBtn').addEventListener('click', saveWork);
+
+function renderPeriodEditor() {
+  document.getElementById('startDisplay').textContent = sheetCtx.startMonth + '月';
+  document.getElementById('endDisplay').textContent   = sheetCtx.endMonth   + '月';
+}
+
+document.getElementById('startDec').addEventListener('click', () => {
+  sheetCtx.startMonth = Math.max(1, sheetCtx.startMonth - 1);
+  renderPeriodEditor();
+});
+document.getElementById('startInc').addEventListener('click', () => {
+  sheetCtx.startMonth = Math.min(sheetCtx.endMonth, sheetCtx.startMonth + 1);
+  renderPeriodEditor();
+});
+document.getElementById('endDec').addEventListener('click', () => {
+  sheetCtx.endMonth = Math.max(sheetCtx.startMonth, sheetCtx.endMonth - 1);
+  renderPeriodEditor();
+});
+document.getElementById('endInc').addEventListener('click', () => {
+  sheetCtx.endMonth = Math.min(12, sheetCtx.endMonth + 1);
+  renderPeriodEditor();
+});
+
+function renderWorktypeList() {
+  const list = document.getElementById('worktypeList');
+  list.innerHTML = '';
+  state.workTypes.forEach(wt => {
+    const chip = document.createElement('button');
+    chip.className = 'worktype-chip' + (wt.id === selectedWorkTypeId ? ' selected' : '');
+    chip.textContent = wt.name;
+    if (wt.id === selectedWorkTypeId) chip.style.background = wt.color;
+    chip.addEventListener('click', () => {
+      selectedWorkTypeId = wt.id;
+      selectedColor = wt.color;
+      newWorktypeMode = false;
+      document.getElementById('newWorktypeInput').value = '';
+      renderWorktypeList();
+      renderSwatches();
+    });
+    list.appendChild(chip);
+  });
+}
+
+function renderSwatches() {
+  const row = document.getElementById('swatchRow');
+  row.innerHTML = '';
+  PRESET_COLORS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (c === selectedColor ? ' selected' : '');
+    sw.style.background = c;
+    sw.addEventListener('click', () => { selectedColor = c; renderSwatches(); });
+    row.appendChild(sw);
+  });
+  // custom
+  const custom = document.createElement('div');
+  custom.className = 'color-custom';
+  custom.innerHTML = `<input type="color" value="${selectedColor}"><div class="color-custom-icon">🎨</div>`;
+  custom.querySelector('input').addEventListener('input', e => { selectedColor = e.target.value; renderSwatches(); });
+  row.appendChild(custom);
+}
+
+document.getElementById('newWorktypeInput').addEventListener('input', () => {
+  if (document.getElementById('newWorktypeInput').value.trim()) {
+    selectedWorkTypeId = null;
+    newWorktypeMode = true;
+    renderWorktypeList();
+  }
+});
+
+function saveWork() {
+  const newName = document.getElementById('newWorktypeInput').value.trim();
+
+  if (newName) {
+    // create new work type
+    const wtId = uid();
+    state.workTypes.push({ id: wtId, name: newName, color: selectedColor });
+    selectedWorkTypeId = wtId;
+  } else if (!selectedWorkTypeId) {
+    showToast('作業の種類を選択してください');
+    return;
+  } else {
+  }
+
+  if (sheetCtx.mode === 'new') {
+    state.schedules.push({
+      id: uid(),
+      plantId: sheetCtx.plantId,
+      workTypeId: selectedWorkTypeId,
+      startMonth: sheetCtx.startMonth,
+      endMonth: sheetCtx.endMonth,
+    });
+  } else {
+    const sch = state.schedules.find(s => s.id === sheetCtx.scheduleId);
+    if (sch) {
+      sch.workTypeId = selectedWorkTypeId;
+      sch.startMonth = sheetCtx.startMonth;
+      sch.endMonth   = sheetCtx.endMonth;
+    }
+  }
+
+  save();
+  closeSheet('workSheet');
+  render();
+}
+
+function deleteWork() {
+  if (!sheetCtx?.scheduleId) return;
+  state.schedules = state.schedules.filter(s => s.id !== sheetCtx.scheduleId);
+  save();
+  closeSheet('workSheet');
+  render();
+}
+
+// ──────────────────────────────────────────────
+// Sheet helpers
+// ──────────────────────────────────────────────
+function openSheet(id) {
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById(id).classList.add('open');
+}
+function closeSheet(id) {
+  document.getElementById(id).classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
+function closeAllSheets() {
+  ['plantSheet','workSheet'].forEach(id => document.getElementById(id).classList.remove('open'));
+  document.getElementById('overlay').classList.remove('open');
+}
+
+// ──────────────────────────────────────────────
+// Toast
+// ──────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ──────────────────────────────────────────────
+// Util
+// ──────────────────────────────────────────────
+function esc(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+
+
+
+// ──────────────────────────────────────────────
+// Menu / Import / Export
+// ──────────────────────────────────────────────
+document.getElementById('menuBtn').addEventListener('click', () => openSheet('menuSheet'));
+document.getElementById('menuCloseBtn').addEventListener('click', () => closeSheet('menuSheet'));
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const json = JSON.stringify(state, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'garden-calendar.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  closeSheet('menuSheet');
+  showToast('エクスポートしました');
+});
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importFileInput').value = '';
+  document.getElementById('importFileInput').click();
+});
+
+document.getElementById('importFileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.plants || !data.workTypes || !data.schedules) {
+        showToast('ファイルの形式が正しくありません'); return;
+      }
+      state = data;
+      save();
+      render();
+      closeSheet('menuSheet');
+      showToast('インポートしました');
+    } catch {
+      showToast('読み込みに失敗しました');
+    }
+  };
+  reader.readAsText(file);
+});
+
+
+// ──────────────────────────────────────────────
+// Init
+// ──────────────────────────────────────────────
+load();
+render();
+</script>
+</body>
+</html>
